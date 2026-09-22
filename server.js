@@ -12,7 +12,10 @@ const { YemotRouter } = require('yemot-router2');
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
-const router = YemotRouter({ printLog: false });
+const router = YemotRouter({
+  printLog: false,
+  defaults: { removeInvalidChars: true },
+});
 
 const RESULTS_DIR = path.join(__dirname, 'results');
 const CSV_PATH = path.join(RESULTS_DIR, 'answers.csv');
