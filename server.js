@@ -12,7 +12,7 @@ const { YemotRouter } = require('yemot-router2');
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
-const router = YemotRouter({ printLog: true });
+const router = YemotRouter({ printLog: false });
 
 const RESULTS_DIR = path.join(__dirname, 'results');
 const CSV_PATH = path.join(RESULTS_DIR, 'answers.csv');
@@ -54,8 +54,17 @@ const dayGroups = {
 // https://הכתובת-שלך/survey
 // השרת מגיב גם ל-GET וגם ל-POST, כך שלא משנה איך api_url_post מוגדר בימות.
 // ---------------------------------------------------------------------------
-router.get('/survey', surveyHandler);
-router.post('/survey', surveyHandler);
+router.get('/survey', surveyHandlerSafe);
+router.post('/survey', surveyHandlerSafe);
+
+async function surveyHandlerSafe(call) {
+  try {
+    await surveyHandler(call);
+  } catch (err) {
+    console.error('שגיאה בתוך השלוחה:', err);
+    throw err;
+  }
+}
 
 async function surveyHandler(call) {
   const a = {};
