@@ -50,9 +50,13 @@ const dayGroups = {
 
 // ---------------------------------------------------------------------------
 // נתיב השלוחה. יש להגדיר בהגדרות השלוחה בימות (api_url) לכתובת:
-// https://הכתובת-שלך/survey  (ו- api_url_post=yes מומלץ)
+// https://הכתובת-שלך/survey
+// השרת מגיב גם ל-GET וגם ל-POST, כך שלא משנה איך api_url_post מוגדר בימות.
 // ---------------------------------------------------------------------------
-router.get('/survey', async (call) => {
+router.get('/survey', surveyHandler);
+router.post('/survey', surveyHandler);
+
+async function surveyHandler(call) {
   const a = {};
 
   // 1. הקלטת שם (עד 20 שניות)
@@ -161,7 +165,7 @@ router.get('/survey', async (call) => {
   saveResultsToFile(call, a);
 
   call.id_list_message([{ type: 'text', data: 'תודה רבה על מילוי השאלון, להתראות' }]);
-});
+}
 
 function csvEscape(value) {
   const str = String(value ?? '');
