@@ -11,6 +11,7 @@ const path = require('path');
 const { YemotRouter } = require('yemot-router2');
 
 const app = express();
+app.use(express.urlencoded({ extended: true }));
 const router = YemotRouter({ printLog: true });
 
 const RESULTS_DIR = path.join(__dirname, 'results');
