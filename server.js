@@ -26,7 +26,7 @@ if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR);
 const CSV_HEADERS = [
   'תאריך ושעה',
   'טלפון',
-  'שם (תמלול)',
+  'קובץ הקלטת שם',
   'גיל',
   'מתאמנת כיום',
   'מדריכה קודמת',
@@ -34,7 +34,7 @@ const CSV_HEADERS = [
   'יום/שעה מועדפים',
   'סיבה מרכזית',
   'כוונת הרשמה לעונה',
-  'משוב פתוח (תמלול)',
+  'קובץ משוב פתוח',
 ];
 
 if (!fs.existsSync(CSV_PATH)) {
@@ -72,12 +72,14 @@ async function surveyHandlerSafe(call) {
 async function surveyHandler(call) {
   const a = {};
 
-  // 1. שם (זיהוי דיבור לטקסט)
-  a.name = await call.read(
-    [{ type: 'text', data: 'הקליטי בבקשה את שמך' }],
-    'stt',
-    { lang: 'he', allow_empty: true, empty_val: '(לא זוהה)' }
+  // 1. הקלטת שם (עד 20 שניות)
+  const nameFile = `name_${call.ApiCallId}`;
+  await call.read(
+    [{ type: 'text', data: 'הקליטי בבקשה את שמך, ולאחר ההקלטה הקישי סולמית לסיום' }],
+    'record',
+    { file_name: nameFile, max_length: '20' }
   );
+  a.nameRecording = `${nameFile}.wav`;
 
   // 2. גיל
   a.age = await call.read(
@@ -160,21 +162,17 @@ async function surveyHandler(call) {
   );
   a.subscriptionIntent = subMap[sub] || '(לא נענה)';
 
-  // 8. שאלה פתוחה - משוב על המדריכות (זיהוי דיבור לטקסט, לתשובות ארוכות יותר)
-  a.feedback = await call.read(
+  // 8. שאלה פתוחה - משוב על המדריכות (הקלטה)
+  const feedbackFile = `feedback_${call.ApiCallId}`;
+  await call.read(
     [{
       type: 'text',
-      data: 'נשמח לשמוע את דעתך על המדריכות בלבד. ממי מהמדריכות את הכי נהנית, מה היית רוצה שתדייק או תשפר, ומה יגרום לך להישאר ולהתמיד',
+      data: 'נשמח לשמוע את דעתך על המדריכות בלבד. ממי מהמדריכות את הכי נהנית, מה היית רוצה שתדייק או תשפר, ומה יגרום לך להישאר ולהתמיד. אנא הקליטי את תשובתך ולאחר מכן הקישי סולמית לסיום',
     }],
-    'stt',
-    {
-      lang: 'he',
-      allow_empty: true,
-      empty_val: '(לא זוהה)',
-      use_records_recognition_engine: true, // מנוע מתאים לטקסטים ארוכים
-      length_max: '120',
-    }
+    'record',
+    { file_name: feedbackFile, max_length: '120' }
   );
+  a.feedbackRecording = `${feedbackFile}.wav`;
 
   // שמירת התשובות בקובץ CSV על השרת (במקום שליחת מייל)
   saveResultsToFile(call, a);
@@ -194,7 +192,7 @@ function saveResultsToFile(call, a) {
   const row = [
     date,
     phone,
-    a.name,
+    a.nameRecording,
     a.age,
     a.trainsNow,
     a.previousInstructor,
@@ -202,7 +200,7 @@ function saveResultsToFile(call, a) {
     a.preferredSlot,
     a.mainReason,
     a.subscriptionIntent,
-    a.feedback,
+    a.feedbackRecording,
   ]
     .map(csvEscape)
     .join(',');
