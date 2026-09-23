@@ -62,14 +62,33 @@ if (!fs.existsSync(CSV_PATH)) {
 }
 
 // ---------------------------------------------------------------------------
+// המרת שעה מספרית (למשל "19:30") להקראה טבעית בעברית ("שבע וחצי")
+// ---------------------------------------------------------------------------
+const HOUR_WORDS = {
+  1: 'אחת', 2: 'שתיים', 3: 'שלוש', 4: 'ארבע', 5: 'חמש', 6: 'שש',
+  7: 'שבע', 8: 'שמונה', 9: 'תשע', 10: 'עשר', 11: 'אחת עשרה', 12: 'שתים עשרה',
+};
+
+function timeToHebrewWords(timeStr) {
+  const [hStr, mStr] = timeStr.split(':');
+  let hour = parseInt(hStr, 10) % 12;
+  if (hour === 0) hour = 12;
+  const minutes = parseInt(mStr, 10);
+  const hourWord = HOUR_WORDS[hour] || hStr;
+  if (minutes === 30) return `${hourWord} וחצי`;
+  if (minutes === 0) return hourWord;
+  return `${hourWord} ו-${minutes}`;
+}
+
+// ---------------------------------------------------------------------------
 // שאלה 5: קבוצות יום/שעה - בחירה דו-שלבית (קודם היום, אחר כך השעה)
 // ---------------------------------------------------------------------------
 const dayGroups = {
-  1: { label: 'ראשון בערב עם שרה שמח', options: { 1: '19:30', 2: '20:30', 3: '21:30' } },
-  2: { label: 'רביעי בערב עם רחלי מילצקי', options: { 1: '19:30', 2: '20:30', 3: '21:30' } },
-  3: { label: 'שני בבוקר', options: { 1: '08:30 עם שרה שמח', 2: '09:30 עם תהילה', 3: '10:30 עם תהילה' } },
-  4: { label: 'רביעי בבוקר עם שרה שמח', options: { 1: '08:30', 2: '09:30', 3: '10:30' } },
-  5: { label: 'שישי בבוקר עם תהילה', options: { 1: '08:30', 2: '09:30', 3: '10:30' } },
+  1: { label: 'ראשון בערב עם שרה שמח', options: { 1: { time: '19:30' }, 2: { time: '20:30' }, 3: { time: '21:30' } } },
+  2: { label: 'רביעי בערב עם רחלי מילצקי', options: { 1: { time: '19:30' }, 2: { time: '20:30' }, 3: { time: '21:30' } } },
+  3: { label: 'שני בבוקר', options: { 1: { time: '08:30', extra: 'עם שרה שמח' }, 2: { time: '09:30', extra: 'עם תהילה' }, 3: { time: '10:30', extra: 'עם תהילה' } } },
+  4: { label: 'רביעי בבוקר עם שרה שמח', options: { 1: { time: '08:30' }, 2: { time: '09:30' }, 3: { time: '10:30' } } },
+  5: { label: 'שישי בבוקר עם תהילה', options: { 1: { time: '08:30' }, 2: { time: '09:30' }, 3: { time: '10:30' } } },
 };
 
 // ---------------------------------------------------------------------------
@@ -112,7 +131,7 @@ async function surveyHandler(call) {
 
   // 3. האם מתעמלת כיום (+ ענף מותנה)
   const trainsNow = await call.read(
-    [{ type: 'text', data: 'האם את מתעמלת אצלנו כיום? הקישי 1 לכן, הקישי 2 ללא' }],
+    [{ type: 'text', data: 'האם את מתעמלת אצלנו כיום? אם כן, הקישי אחת. אם לא, הקישי 2' }],
     'tap',
     { max_digits: 1, digits_allowed: [1, 2] }
   );
@@ -132,7 +151,7 @@ async function surveyHandler(call) {
 
   // 4. האם מעוניינת להמשיך אצל אותה מדריכה
   const continueSame = await call.read(
-    [{ type: 'text', data: 'האם את מעוניינת להמשיך אצל המדריכה שהייתה לך? הקישי 1 לכן, 2 ללא מעדיפה מדריכה אחרת' }],
+    [{ type: 'text', data: 'האם את מעוניינת להמשיך אצל המדריכה שהייתה לך? אם כן, הקישי אחת. אם לא, ואת מעדיפה מדריכה אחרת, הקישי 2' }],
     'tap',
     { max_digits: 1, digits_allowed: [1, 2] }
   );
@@ -149,14 +168,16 @@ async function surveyHandler(call) {
   });
   const group = dayGroups[groupChoice];
   let timeChoiceText = 'בחרי שעה: ';
-  Object.entries(group.options).forEach(([key, label]) => {
-    timeChoiceText += `הקישי ${key} עבור ${label}. `;
+  Object.entries(group.options).forEach(([key, opt]) => {
+    const spoken = timeToHebrewWords(opt.time) + (opt.extra ? ` ${opt.extra}` : '');
+    timeChoiceText += `הקישי ${key} עבור ${spoken}. `;
   });
   const timeChoice = await call.read([{ type: 'text', data: timeChoiceText }], 'tap', {
     max_digits: 1,
     digits_allowed: [1, 2, 3],
   });
-  a.preferredSlot = `${group.label} - ${group.options[timeChoice]}`;
+  const chosenSlot = group.options[timeChoice];
+  a.preferredSlot = `${group.label} - ${chosenSlot.time}${chosenSlot.extra ? ' ' + chosenSlot.extra : ''}`;
 
   // 6. סיבה מרכזית
   const reasonMap = {
