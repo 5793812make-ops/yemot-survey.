@@ -23,6 +23,26 @@ const RESULTS_KEY = process.env.RESULTS_KEY; // "סיסמה" פשוטה לגיש
 
 if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR);
 
+// בונה חותמת זמן בטוחה לשם קובץ (בלי נקודתיים/רווחים), לפי שעון ישראל
+function timestampForFilename(date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+    .formatToParts(date)
+    .reduce((acc, p) => {
+      acc[p.type] = p.value;
+      return acc;
+    }, {});
+  return `${parts.year}-${parts.month}-${parts.day}_${parts.hour}-${parts.minute}-${parts.second}`;
+}
+
 const CSV_HEADERS = [
   'תאריך ושעה',
   'טלפון',
@@ -71,9 +91,11 @@ async function surveyHandlerSafe(call) {
 
 async function surveyHandler(call) {
   const a = {};
+  const phoneForFile = (call.ApiPhone || 'unknown').replace(/[^0-9]/g, '');
+  const fileTimestamp = timestampForFilename(new Date());
 
   // 1. הקלטת שם (עד 20 שניות)
-  const nameFile = `name_${call.ApiCallId}`;
+  const nameFile = `name_${phoneForFile}_${fileTimestamp}`;
   await call.read(
     [{ type: 'text', data: 'הקליטי בבקשה את שמך, ולאחר ההקלטה הקישי סולמית לסיום' }],
     'record',
@@ -163,7 +185,7 @@ async function surveyHandler(call) {
   a.subscriptionIntent = subMap[sub] || '(לא נענה)';
 
   // 8. שאלה פתוחה - משוב על המדריכות (הקלטה)
-  const feedbackFile = `feedback_${call.ApiCallId}`;
+  const feedbackFile = `feedback_${phoneForFile}_${fileTimestamp}`;
   await call.read(
     [{
       type: 'text',
